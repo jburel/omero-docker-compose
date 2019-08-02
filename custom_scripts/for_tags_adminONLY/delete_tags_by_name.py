@@ -63,8 +63,9 @@ print "script parameters", script_params
 # get the 'IDs' parameter (which we have restricted to 'Dataset' IDs)
 ids = unwrap(client.getInput("IDs"))
 nametag = script_params["Tag_name"]
-nametag = nametag.strip()
+tag_names = [x.strip() for x in nametag.split(',')]
 objects = conn.getObjects(data_type, ids)
+
 
 
 #create the list of the objects (Datasets, images or both)
@@ -87,11 +88,28 @@ elif data_type == 'Dataset':
 else:
     object_list = objects
 
+link_to_delete_images = []
+link_to_delete_projects = []
+link_to_delete_datasets = []
 
 for obj in object_list:
-    print "data id", obj.getId()
-    tag_todelete = nametag
-    conn.deleteObjects('TagAnnotation', tag_todelete)
+    # for each object load the annotation
+    for ann in obj.listAnnotations():
+        if ann.OMERO_TYPE == omero.model.TagAnnotationI:
+            if ann.getTextValue() in tag_names:
+                if isinstance(obj, omero.gateway.ImageWrapper):
+                    link_to_delete_images.append(ann.link.getId())
+                elif isinstance(obj, omero.gateway.DatasetWrapper):
+                    link_to_delete_datasets.append(ann.link.getId())
+                elif isinstance(obj, omero.gateway.ProjectWrapper):
+                    link_to_delete_projects.append(ann.link.getId())
+
+if len(link_to_delete_images) > 0:
+    conn.deleteObjects("ImageAnnotationLink", link_to_delete_images)
+if len(link_to_delete_datasets) > 0:
+    conn.deleteObjects("DatasetAnnotationLink", link_to_delete_datasets)
+if len(link_to_delete_projects) > 0:
+    conn.deleteObjects("ProjectAnnotationLink", link_to_delete_projects)
 
 # Return some value(s).
 
